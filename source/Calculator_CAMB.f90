@@ -95,6 +95,14 @@
     P%H0 = CMB%H0
     P%Reion%redshift= CMB%zre
     P%Reion%delta_redshift = CMB%zre_delta
+    !CD
+    P%nDM = CMB%nDM
+    P%mDM2mp = CMB%mDM2mp
+    P%sigDM = CMB%sigDM* P%mDM2mp *1.6726219e-34_mcp !TL modified here for 1.6726219d-24*1.0d-10
+
+    P%sigratio = 0.0   
+    !CD
+
     w_lam = CMB%w
     wa_ppf = CMB%wa
     ALens = CMB%ALens

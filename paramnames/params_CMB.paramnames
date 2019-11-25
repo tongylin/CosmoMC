@@ -14,6 +14,9 @@ deltazrei     {\Delta}z_{\rm re} #width of reionization
 Alens         A_{L}     #lensing potential scaled by sqrt(A_lens)
 Alensf        A^f_L     #amplitude of smoothing power from fiducial models 
 fdm           \epsilon_0 f_d    #CosmoRec dark matter annihilation parameter, 0910.3663
+sigDMom       \sigma_{DM}/m_{DM} #sigma/m in cm^2/g
+mDM2mp        m_{DM} #DM particle mass in units of proton mass
+nDM           n_{DM}
 logA          {\rm{ln}}(10^{10} A_s)
 ns            n_s	    #beware that pivot scale can change in .ini file
 nrun          n_{\rm run}

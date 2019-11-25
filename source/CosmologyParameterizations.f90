@@ -334,6 +334,10 @@
         CMB%ALens = Params(14)
         CMB%ALensf = Params(15)
         CMB%fdm = Params(16)
+        !CD
+        CMB%mDM2mp = Params(18)
+        CMB%sigDM = Params(17)  ! (Params(17)* CMB%mDM2mp *1.6726219e-24 ) !TL modification
+        CMB%nDM = Params(19)
         call SetFast(Params,CMB)
     end if
 
@@ -394,6 +398,10 @@
         CMB%fdm=0
         CMB%iso_cdm_correlated=0
         CMB%Alens=1
+        !CD
+        CMB%mDM2mp = Params(18)
+        CMB%sigDM =  Params(17)  ! (Params(17)* CMB%mDM2mp *1.6726219e-24 )  !TL modification
+        CMB%nDM = Params(19)
     end select
     end subroutine BK_ParamArrayToTheoryParams
 

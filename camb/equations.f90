@@ -1973,9 +1973,9 @@
          *FHel/((a**2)*mb*(1._dl+CP%mDM2mp))*min(xenow,1.d0)*(erf(vDMb/sqrt(2.d0)) - vDMb*sqrt(2.d0/3.14)*exp(-vDMb**2/2.d0))
 
     !TL: delta function option!
-    if(CP%dmdelta) then
-        RcDM = RcDM*exp(- (1.d0/a - CP%sig0zmean -1)**2/(2.d0*(CP%sig0zwidth)**2))/sqrt(2.d0*3.14*(CP%sig0zwidth)**2)
-    endif
+    !if(CP%dmdelta) then
+    !    RcDM = RcDM*exp(- (1.d0/a - CP%sig0zmean -1)**2/(2.d0*(CP%sig0zwidth)**2))/sqrt(2.d0*3.14*(CP%sig0zwidth)**2)
+    !endif
 
     RbDM=(grhoc_t/grhob_t) * RcDM
 

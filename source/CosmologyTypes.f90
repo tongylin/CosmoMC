@@ -119,6 +119,8 @@
         real(mcp) :: omnuh2_sterile = 0._mcp  !note omnhu2 is the sum of this + standard neutrinos
         real(mcp) :: sum_mnu_standard
         real(mcp) reserved(5)
+        !CD
+        real(mcp) sigDM, mDM2mp, nDM
     end Type CMBParams
 
     Type, extends(TParameterization) :: TCosmologyParameterization
@@ -137,8 +139,11 @@
     class(TDataLikelihood), pointer :: DataLike
 
     !Called after this%init
-    num_hard = slow_num
+    !CD    
+    !num_hard = slow_num
+        num_hard = slow_num+3
     num_initpower = semi_slow_num
+    !print *,num_hard,num_initpower,num_theory_params
     if (num_hard + num_initpower /= num_theory_params) &
         call MpiStop('SetTheoryParameterNumbers: parameter numbers do not match')
     index_initpower = num_hard+1
