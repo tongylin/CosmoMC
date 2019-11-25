@@ -31,6 +31,22 @@ The master branch contains latest changes to the main release version.
 
 This branch has an old CAMB version as used by the Planck 2018 parameter analysis.
 
+Docker
+===================
+
+To build container (or rebuild after changes):
+
+    $ docker build -t tongylin/cosmomc .
+
+Run container with bash subshell:
+
+    $ docker run --rm -it tongylin/cosmomc
+
+Run container with mapped volume (mapping /my/shared to /app/shared within container):
+
+    $ docker run --rm -it -v /my/shared:/app/shared tongylin/cosmomc
+
+
 =============
 
 .. raw:: html
