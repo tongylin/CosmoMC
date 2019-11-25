@@ -118,6 +118,28 @@
 
     P%tcmb   = Ini_Read_Double('temp_cmb',COBE_CMBTemp)
     P%yhe    = Ini_Read_Double('helium_fraction',0.24_dl)
+    
+    !CD: Baryon-DM scattering parameters; sig0 in cm^2/g, mDM in MeV
+    if (Ini_Read_Logical('dm_scatter',.true.)) then
+        P%mDM2mp = Ini_Read_Double('mDM')/938.28_dl 
+        P%sigDM = Ini_Read_Double('sig0omDM')*Ini_Read_Double('mDM')*1.6726219d-24/938.28_dl !CD: in cm^2
+        if(Ini_Read_Double('sig0omDM') == 0) then
+           P%sigratio = 0
+        else
+           P%sigratio = (Ini_Read_Double('sig0omDMHe')/Ini_Read_Double('sig0omDM')) 
+        end if
+        P%nDM = Ini_Read_Int('n')
+    else
+        P%mDM2mp = 1
+        P%sigDM = 0
+        P%nDM = 0
+    end if
+    !TL Add knobs for delta function injections
+    P%dmdelta = Ini_Read_Logical('dm_delta',.false.)
+    P%sig0zmean = Ini_Read_Double('sig0_zmean',1000._dl)
+    P%sig0zwidth = Ini_Read_Double('sig0_zwidth',1._dl)
+    !CD
+
     P%Num_Nu_massless  = Ini_Read_Double('massless_neutrinos')
 
     P%Nu_mass_eigenstates = Ini_Read_Int('nu_mass_eigenstates',1)
