@@ -116,7 +116,7 @@
     !Description of this file. Change if you make modifications.
     character(LEN=*), parameter :: Eqns_name = 'gauge_inv'
 
-    integer, parameter :: basic_num_eqns = 5
+    integer, parameter :: basic_num_eqns = 6 !5 !CD
 
     logical :: DoTensorNeutrinos = .true.
 
@@ -124,7 +124,8 @@
     !if true, use smooth approx to radition perturbations after decoupling on
     !small scales, saving evolution of irrelevant osciallatory multipole equations
 
-    logical, parameter :: second_order_tightcoupling = .true.
+    !CD: Second Order Tight Coupling Turned off
+    logical, parameter :: second_order_tightcoupling = .false.
 
     real(dl) :: Magnetic = 0._dl
     !Vector mode anisotropic stress in units of rho_gamma
@@ -1545,6 +1546,7 @@
     !  Baryons
     y(4)=InitVec(i_clxb)
     y(5)=InitVec(i_vb)
+    y(6)=y(5) !CD: match vc=vb initial conditions
 
     !  Photons
     y(EV%g_ix)=InitVec(i_clxg)
@@ -1787,6 +1789,22 @@
     real(dl) ddopacity, visibility, dvisibility, ddvisibility, exptau, lenswindow
     real(dl) ISW, quadrupole_source, doppler, monopole_source, tau0
 
+    !CD: DM-Baryon scattering variables and parameters
+    real(dl) rhocrit,vc,vcdot,slipDM,h0c,beta
+    real(dl), parameter :: cmperMpc=3.08567758d24
+    real(dl), parameter :: mb=938.0 !In MeV
+    real(dl), parameter :: kBvl=8.61733d-11 !kb in MeV/K
+    real(dl), dimension(9) :: &
+        cns= (/ 0.2659, 0.3333, 0.5319, 1.0, 2.12775, 5.0, 12.7662, 35.0,102.129 /)
+    real(dl) tgnow,tbnow,tdmnow, pdmnow, vdmnow, xenow
+    real(dl) RbDM,RcDM
+    real(dl) vDMb,cs2c,FF,FHel, vrms
+
+    h0c = ((CP%h0)/(cmperMpc*1d-5)) * 29979245800_dl ! H0*c in cm/s^2
+    rhocrit= (3*(h0c)**2 / (1.677d-6)) * 624150.65_dl ! crit density in MeV/cm^3
+    rhocrit=rhocrit*cmperMpc !crit density in MeV/cm^2/Mpc
+    !CD
+
     k=EV%k_buf
     k2=EV%k2_buf
 
@@ -1801,6 +1819,8 @@
     !  Baryon variables
     clxb=ay(4)
     vb=ay(5)
+    !CD: added vc
+    vc =ay(6)
 
     !  Compute expansion rate from: grho 8*pi*rho*a**2
 
@@ -1828,7 +1848,7 @@
     !  8*pi*a*a*SUM[rho_i*clx_i]
     dgrho_matter=grhob_t*clxb+grhoc_t*clxc
     !  8*pi*a*a*SUM[(rho_i+p_i)*v_i]
-    dgq=grhob_t*vb
+    dgq=grhob_t*vb + grhoc_t*vc !CD: DM term
 
     if (CP%Num_Nu_Massive > 0) then
         call MassiveNuVars(EV,ay,a,grhonu_t,gpres_nu,dgrho_matter,dgq, wnu_arr)
@@ -1920,8 +1940,47 @@
     end if
 
     !  CDM equation of motion
-    clxcdot=-k*z
-    ayprime(3)=clxcdot
+
+    !CD: get the baryon and dm temperatures from thermotemps
+    tgnow=CP%tcmb/a
+    tbnow=CP%tcmb/a
+    tdmnow=CP%tcmb/a !/1.d3
+    call thermotemps(tau, tbnow, tdmnow, xenow)
+
+    !CD: Update DM sound speed, without enforcing Tb=Tchi 
+    cs2c=cs2/CP%mDM2mp*tdmnow/tbnow
+
+    !CD: thermal DM velocity in units of c
+    pdmnow=3.0*kBvl*tdmnow*CP%mDM2mp*mb   ! this is really p_chi^2 in units of MeV^2
+    vdmnow = pdmnow/(pdmnow + CP%mDM2mp*mb*CP%mDM2mp*mb)/3.0  ! vdm^2 in units of c=1
+    !TL: this is to make sure velocity doesn't go above 1.0
+
+    !TL: rms velocity
+    if(1.d0/a.ge.1001.d0) then
+        vrms=1.d-4
+    else if(1.d0/a.le.1001.d0) then
+        vrms=1.d-4*(1.d0/a/1001.d0)
+    end if
+
+!CD: Helium correction factor (no approx.)
+    FF=sqrt((1._dl+(tdmnow/tbnow)/CP%mDM2mp)/(1._dl+4._dl*(tdmnow/tbnow)/CP%mDM2mp))
+    FHel=1._dl-CP%yhe
+    !FHel=1._dl
+    !CD: Rate coeffs in units of 1/Mpc
+    !TL: r = vms/sqrt(Tb/mb + Tx/mx)
+    vDMb = vrms/sqrt((kBvl/mb)*tbnow + vdmnow)
+    RcDM=(CP%sigDM)*(CP%omegab)*rhocrit*(vrms**(CP%nDM+1))&
+         *FHel/((a**2)*mb*(1._dl+CP%mDM2mp))*min(xenow,1.d0)*(erf(vDMb/sqrt(2.d0)) - vDMb*sqrt(2.d0/3.14)*exp(-vDMb**2/2.d0))
+
+    !TL: delta function option!
+    if(CP%dmdelta) then
+        RcDM = RcDM*exp(- (1.d0/a - CP%sig0zmean -1)**2/(2.d0*(CP%sig0zwidth)**2))/sqrt(2.d0*3.14*(CP%sig0zwidth)**2)
+    endif
+
+    RbDM=(grhoc_t/grhob_t) * RcDM
+
+   clxcdot=-k*(z+vc) !CD with DM scattering 
+   ayprime(3)=clxcdot
 
     !  Baryon equation of motion.
     clxbdot=-k*(z+vb)
@@ -1933,6 +1992,7 @@
     ! Easy to see instability in k \sim 1e-3 by tracking evolution of vb
 
     !  Use explicit equation for vb if appropriate
+        vcdot=-adotoa*vc + cs2c*k*clxc + RcDM*(vb-vc)
 
     if (EV%TightCoupling) then
         !  ddota/a
@@ -1944,6 +2004,10 @@
         !  First-order approximation to baryon-photon splip
         slip = - (2*adotoa/(1+pb43) + dopacity/opacity)* (vb-3._dl/4*qg) &
             +(-adotdota*vb-k/2*adotoa*clxg +k*(cs2*clxbdot-clxgdot/4))/(opacity*(1+pb43))
+
+        !CD: With DM-Baryon scattering (like Sigurdson)
+        beta = RbDM/(opacity*(1+pb43))
+        slipDM = slip + beta*(vcdot - adotoa*((CP%nDM+3._dl)/2._dl)*(vc-vb))
 
         if (second_order_tightcoupling) then
             ! by Francis-Yan Cyr-Racine simplified (inconsistently) by AL assuming flat
@@ -1972,23 +2036,37 @@
 
         !  Use tight-coupling approximation for vb
         !  zeroth order approximation to vbdot + the pig term
-        vbdot=(-adotoa*vb+cs2*k*clxb  &
-            +k/4*pb43*(clxg-2*EV%Kf(1)*pig))/(1+pb43)
+        !CD
+        !vbdot=(-adotoa*vb+cs2*k*clxb  &
+        !    +k/4*pb43*(clxg-2*EV%Kf(1)*pig))/(1+pb43)
 
-        vbdot=vbdot+pb43/(1+pb43)*slip
+        !vbdot=vbdot+pb43/(1+pb43)*slip
+        vbdot = -adotoa*vb+cs2*k*clxb+k/4*pb43*(clxg-2*EV%Kf(1)*pig)
+        vbdot = vbdot+pb43*slipDM + RbDM*(vc-vb)
+        vbdot = vbdot/(1._dl+pb43*(1._dl+beta))
+
         EV%pig = pig
 
     else
         vbdot=-adotoa*vb+cs2*k*clxb-photbar*opacity*(4._dl/3*vb-qg)
+        !CD Modified for DM 
+        vbdot=vbdot + RbDM*(vc-vb)
     end if
 
     ayprime(5)=vbdot
 
+    !CD: DM scattering not affected by tight coupling
+    vcdot=-adotoa*vc + cs2c*k*clxc + RcDM*(vb-vc)
+    ayprime(6)=vcdot
+
     if (.not. EV%no_phot_multpoles) then
         !  Photon equations of motion
         ayprime(EV%g_ix)=clxgdot
-        qgdot=4._dl/3*(-vbdot-adotoa*vb+cs2*k*clxb)/pb43 &
-            +EV%denlk(1)*clxg-EV%denlk2(1)*pig
+        qgdot=4._dl/3*(-vbdot-adotoa*vb+cs2*k*clxb)/pb43
+        !CD 
+        !&            +EV%denlk(1)*clxg-EV%denlk2(1)*pig
+        qgdot=qgdot+ (4._dl/3)*RbDM*(vc-vb)/pb43
+        qgdot=qgdot+ EV%denlk(1)*clxg-EV%denlk2(1)*pig
         ayprime(EV%g_ix+1)=qgdot
 
         !  Use explicit equations for photon moments if appropriate

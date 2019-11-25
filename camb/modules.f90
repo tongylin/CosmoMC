@@ -110,7 +110,11 @@
         real(dl)  :: Max_eta_k, Max_eta_k_tensor
         ! _tensor settings only used in initialization,
         !Max_l and Max_eta_k are set to the tensor variables if only tensors requested
-
+        !CD: DM-Baryon Scattering
+        real(dl)  :: sigDM, sigratio, mDM2mp, sig0zmean, sig0zwidth
+        logical   :: dmdelta
+        integer   :: nDM
+        !CD
         real(dl)  :: omegab, omegac, omegav, omegan
         !Omega baryon, CDM, Lambda and massive neutrino
         real(dl)  :: H0,TCMB,yhe,Num_Nu_massless
@@ -195,12 +199,15 @@
     !Parameters for checking/changing overall accuracy
     !If HighAccuracyDefault=.false., the other parameters equal to 1 corresponds to ~0.3% scalar C_l accuracy
     !If HighAccuracyDefault=.true., the other parameters equal to 1 corresponds to ~0.1% scalar C_l accuracy (at L>600)
-    logical :: HighAccuracyDefault = .true.
+    logical :: HighAccuracyDefault = .false. !CD
 
     real(dl) :: lSampleBoost=1._dl
     !Increase lSampleBoost to increase sampling in lSamp%l for Cl interpolation
 
     real(dl) :: AccuracyBoost =1._dl
+    !CD
+    real(dl) :: switch = 1e-7
+    logical   :: tempev = .false.    
 
     !Decrease step sizes, etc. by this parameter. Useful for checking accuracy.
     !Can also be used to improve speed significantly if less accuracy is required.
@@ -2602,6 +2609,13 @@
     integer,parameter :: nthermo=20000
 
     real(dl) tb(nthermo),cs2(nthermo),xe(nthermo)
+    !CD
+    real(dl) tdm(nthermo)
+    real(dl) hubs(nthermo), timecs(nthermo), timeds(nthermo), fs(nthermo)
+    real(dl) dtb(nthermo), dtdm(nthermo)
+    integer now, nn     
+    real(dl) xcfacnow,scfacprev
+    !CD           
     real(dl) dcs2(nthermo)
     real(dl) dotmu(nthermo), ddotmu(nthermo)
     real(dl) sdotmu(nthermo),emmu(nthermo)
@@ -2611,15 +2625,63 @@
     real(dl) tauminn,dlntau,Maxtau
     logical, parameter :: dowinlens = .false.
 
+    !CD: Parameters for DM-baryon
+    real(dl), parameter :: cmperMpc=3.085677581d24
+    real(dl), parameter :: mb=938.28 !In MeV
+    real(dl), parameter :: me=0.511 !In MeV
+    real(dl), parameter :: kBvl=8.61733d-11 !kb in MeV/K
+    real(dl), parameter :: sigmat = 6.6524616d-25 !in cm^2
+    real(dl), dimension(9) :: &
+    cns= (/ 0.2659, 0.3333, 0.5319, 1.0, 2.12775, 5.0, 12.7662, 35.0, 102.129 /)
+    real(dl) rhocrit, h0c    
+
     real(dl) :: tight_tau, actual_opt_depth
     !Times when 1/(opacity*tau) = 0.01, for use switching tight coupling approximation
     real(dl) :: matter_verydom_tau
     real(dl) :: r_drag0, z_star, z_drag  !!JH for updated BAO likelihood.
-
-    public thermo,inithermo, tight_tau, IonizationFunctionsAtTime, &
+    
+    !CD: added thermotemps
+    public thermo,thermotemps,inithermo, tight_tau, IonizationFunctionsAtTime, &
         Thermo_OpacityToTime,matter_verydom_tau, ThermoData_Free,&
         z_star, z_drag, GetBackgroundEvolution
     contains
+
+    !TL include ionization fraction
+    subroutine thermotemps(tau,tbnow,tdmnow,xenow)
+    !Compute baryon and DM temperatures
+    implicit none
+    real(dl) tau,tbnow,tdmnow,xenow
+    real(dl) a
+    integer i
+    real(dl) d
+    d=log(tau/tauminn)/dlntau+1._dl
+    i=int(d)
+    d=d-i
+    a=scaleFactor(i)
+
+    if (i < 1) then
+        !CD: equal to tgamma for small times
+        tbnow=CP%tcmb/a
+        tdmnow=CP%tcmb/a
+        xenow=1
+        stop 'thermo out of bounds'
+    else if (i >= nthermo) then
+        !assume temps fall adiabatically for large scale factors
+        tbnow=tb(nthermo)*(scaleFactor(nthermo)/a)**2
+        tdmnow=tdm(nthermo)*(scaleFactor(nthermo)/a)**2
+        xenow=0
+    else
+        !Cubic spline interpolation.
+        tbnow=tb(i)+d*(dtb(i)+d*(3*(tb(i+1)-tb(i))  &
+            -2*dtb(i)-dtb(i+1)+d*(dtb(i)+dtb(i+1)  &
+            +2*(tb(i)-tb(i+1)))))
+        tdmnow=tdm(i)+d*(dtdm(i)+d*(3*(tdm(i+1)-tdm(i)) &
+            -2*dtdm(i)-dtdm(i+1)+d*(dtdm(i)+dtdm(i+1) &
+            +2*(tdm(i)-tdm(i+1)))))
+        xenow=xe(i)
+    end if
+    end subroutine thermotemps
+   !TL    
 
     subroutine thermo(tau,cs2b,opacity, dopacity)
     !Compute unperturbed sound speed squared,
@@ -2679,6 +2741,106 @@
 
     end function Thermo_OpacityToTime
 
+     !CD
+    subroutine tderivsz(n, z, y, yprime)
+    !use constants
+    !use precision
+    use ModelParams
+    implicit none
+
+    real(dl) iofrac
+    integer n
+    real(dl) z,y(n), yprime(n)
+
+    real(dl) a,hub
+    real(dl) tgnow,tbnow, tdmnow
+    real(dl) xenow
+    real(dl) dxedz, dlnHdz, dlntcdz, dlnfdz, dlnffdz
+    real(dl) nh,nhe,ne,mub,f,ff
+    real(dl) timec,timed,hubnow
+    real(dl) zp1,dz
+    real(dl) star, dstardz
+    real(dl) epg, epb
+    real(dl) blah, blah2
+    real(dl) tbdz, tdmdz
+    integer coupled
+
+    a = 1._dl/(z+1._dl)
+    tgnow=CP%tcmb/a
+    tbnow=abs(y(1))
+    tdmnow=abs(y(2))
+    xenow=xe(now)
+    f=fs(now)
+    ff = 1._dl + 1._dl/f
+ 
+!Time scales
+    timec=timecs(now)
+    timed=timeds(now)
+    hub=hubs(now)
+    zp1 = 1._dl/scaleFactor(now+1) - 1.
+    dz = z-zp1
+
+    blah = (1-CP%yHe)/((CP%yHe/4.)+(1.-CP%yHe)*(1.+xenow))
+    blah2 = (mb/2.)*(CP%nDM + 1.)/(kBvl*tbnow + kBvl*tdmnow/CP%mDM2mp)
+
+    ! derivatives
+    if (dz==0.0) then
+        dxedz=0.0
+    else
+        dxedz = (xenow - xe(now+1))/dz
+    end if
+    dlnHdz = (4._dl*grhor*(1.+z)**3 +3*(grhoc+grhob)*(1.+z)**2)/ &
+             (2._dl*(grhov+grhor*(1.+z)**4+(grhoc+grhob)*(1.+z)**3))
+    dlntcdz = -4./(1.+z) - (1./xenow + blah)*dxedz
+    dlnfdz = f*blah*dxedz
+    dlnffdz= -(1./f)*dlnfdz/ff
+
+    if (hub*timec < switch .and. hub*timed < switch) then
+
+        dlnffdz= -(1./f)*blah*dxedz/ff
+
+        epb = tgnow*hub*timed
+        epg = tgnow*hub*timec*ff
+        !tb/dz
+        tbdz = tgnow/(1._dl + z)
+        tbdz = tbdz - epg*(1._dl/(1._dl+z) + dlnHdz + dlntcdz)
+        !td/dz
+        tdmdz = tbdz*(1. + blah2*(kBvl*epb/mb)) + epb*(2._dl/(1._dl+z)-dlnHdz)
+        tdmdz = tdmdz / (1._dl - blah2*epb/(kBvl*mb*CP%mDM2mp))
+
+         else if (hub*timec < switch .and. hub*timed > switch) then
+    !        .and. timec/(f*timed) < switch) then
+        !td/dz
+        tdmdz = (2.0*tdmnow + (tdmnow-tbnow)/(hub*timed))/(1._dl+z)
+        !AC this part is smaller by a factor tc/td - include it?
+        !star = timec*(tgnow - tdmnow)/(f*timed)
+        !dstardz = star*(1._dl/(1._dl+z)+dlntcdz-dlnfdz + ...
+        !epg = tgnow*timec*(hub + (1._dl - tdmnow/tgnow)/(f*timed))
+        !tb/dz
+        tbdz = (tgnow/(1._dl + z)) - tgnow*timec*hub*(1._dl/(1._dl+z)+dlnHdz+dlntcdz)
+
+    else if (hub*timed < switch .and. hub*timec > switch) then
+        epb = -(timed/timec)*(tbnow-tgnow)/ff
+        !tb/dz
+        tbdz = 2.0*tbnow + (tbnow-tgnow)/(hub*timec)/ff
+        tbdz = tbdz/(1._dl + z)
+        !tdm/dz
+        tdmdz = tbdz *(1. + epb*(blah2/mb/kBvl-1./(tbnow-tgnow)))
+        tdmdz = tdmdz +epb*(3./(1.+z)+dlntcdz+tgnow/((tbnow-tgnow)*(1.+z)))
+        tdmdz = tdmdz/(1.-(kBvl*epb/(mb*CP%mDM2mp))*blah2)
+
+    else
+        tdmdz = (2.0*tdmnow + (tdmnow-tbnow)/(hub*timed))/(1._dl+z)
+        tbdz = 2.0*tbnow + (tbnow-tgnow)/(hub*timec)
+        tbdz = (tbdz + (tbnow-tdmnow)/(hub*timed*f))/(1._dl+z)
+    end if
+
+    yprime(1)=tbdz
+    yprime(2)=tdmdz
+
+    return
+    end subroutine tderivsz
+
     subroutine inithermo(taumin,taumax)
     !  Compute and save unperturbed baryon temperature and ionization fraction
     !  as a function of time.  With nthermo=10000, xe(tau) has a relative
@@ -2692,6 +2854,11 @@
 
     real(dl) tau01,adot0,a0,a02,x1,x2,barssc,dtau
     real(dl) xe0,tau,a,a2
+    !CD
+    real(dl) z0,z 
+    real(dl) adotoa0, hub0 
+    integer coupled 
+    !CD     
     real(dl) adot,tg0,ahalf,adothalf,fe,thomc,thomc0,etc,a2t
     real(dl) dtbdla,vfi,cf1,maxvis, vis
     integer ncount,i,j1,iv,ns
@@ -2705,6 +2872,35 @@
     real(dl) rombint
     integer noutput
     external rombint
+
+     !CD: parameters for DM-Baryon scattering
+    real(dl) t1,t2
+    real(dl) grhob_t,grhoc_t,grhor_t,grhog_t,grhov_t,grho
+    real(dl) tgnow,tbnow, tdmnow, xenow, f, fff
+    real(dl) timec,timed
+    real(dl) epg, epb
+
+    real(dl) vDMb, FF, FHel
+    real(dl) RcDM,Rg,ne,nh,nhe,mub
+
+    !CD: parameters for dverk
+    real(dl) tol2
+    integer ind
+
+    real(dl) com(24), work(2,9), y(2),yp(2)
+    integer ind2
+    real(dl) com2(24), work2(1,9), y2(1),yp2(1)
+
+    coupled=1
+    ind=1
+    ind2=1
+
+    !tol2=tol/exp(AccuracyBoost-1)
+    tol2=1.e-3
+
+    !CD: critical density
+    h0c = ((CP%h0)/(cmperMpc*1d-5)) * 29979245800_dl ! H0*c in cm/s^2
+    rhocrit= (3*(h0c)**2 / (1.677d-6)) * 624150.65_dl ! in MeV/cm^3    
 
     call Recombination_Init(CP%Recomb, CP%omegac, CP%omegab,CP%Omegan, CP%Omegav, &
         CP%h0,CP%tcmb,CP%yhe,CP%Num_Nu_massless + CP%Num_Nu_massive)
@@ -2736,6 +2932,10 @@
     !  This gives wrong temperature before pair annihilation, but
     !  the error is harmless.
     tb(1)=CP%tcmb/a0
+    !CD : modified initial condition
+    tdm(1)=CP%tcmb/a0 !/1.0d6
+    
+
     xe0=1._dl
     x1=0._dl
     x2=1._dl
@@ -2760,7 +2960,8 @@
             matter_verydom_tau = tau
         end if
 
-        a=a0+2._dl*dtau/(1._dl/adot0+1._dl/adot)
+        !CD
+        !a=a0+2._dl*dtau/(1._dl/adot0+1._dl/adot)
         !  Baryon temperature evolution: adiabatic except for Thomson cooling.
         !  Use  quadrature solution.
         ! This is redundant as also calculated in REFCAST, but agrees well before reionization
@@ -2796,6 +2997,106 @@
         else
             xe(i)=Recombination_xe(a)
         end if
+
+       !CD
+        z0 = 1._dl/a0 - 1._dl
+        z = 1._dl/a - 1._dl
+
+        !CD: all these quantities are for the i-1 step
+        grhob_t=grhob/a0
+        grhoc_t=grhoc/a0
+        grhor_t=grhornomass/(a0**2)
+        grhog_t=grhog/(a0**2)
+        grhov_t=grhov*a0**(-1+3) !AC assume DM has w = -1
+        grho=grhob_t+grhoc_t+grhor_t+grhog_t+grhov_t
+        adotoa0=sqrt(grho/3._dl)
+        adot0=adotoa0*a0
+        hub0=adotoa0/a0
+
+        tgnow=CP%tcmb/a0
+        tbnow=tb(i-1)
+        tdmnow=tdm(i-1)
+        xenow=xe(i-1)
+        nh=(1-CP%yhe)*CP%omegab*rhocrit/(a0**3)/mb !number densities in 1/cm^3
+        nhe=(CP%yhe/4._dl)*CP%omegab*rhocrit/(a0**3)/mb
+        ne=xenow*CP%omegab*rhocrit/(a0**3)/mb
+        mub=(nh+4._dl*nhe)/(nh+nhe+ne) !molecular weight/mb
+        f=CP%mDM2mp*CP%omegab/(mub*CP%omegac)
+        fff=1._dl + 1._dl/f
+
+        if(1.d0/a-1.d0.ge.1000.d0) then
+           vDMb=sqrt((kBvl/mb)*(tbnow+tdmnow/CP%mDM2mp)+1.d-8/3.0)
+        else
+           vDMb=sqrt((kBvl/mb)*(tbnow+tdmnow/CP%mDM2mp)+1.d-8/3.0*(1.d0/a/1000.d0)**2._dl)
+        end if
+
+        !CD: Helium correction factor (no approx.)
+        FF=sqrt((1._dl+(tdmnow/tbnow)/CP%mDM2mp)/(1._dl+4._dl*(tdmnow/tbnow)/CP%mDM2mp))
+        FF=(FF**(1+CP%nDM))*(1._dl+1._dl/CP%mDM2mp)/(1._dl+4._dl/CP%mDM2mp)
+        FHel=1._dl-CP%yhe+CP%yhe*CP%sigratio*FF
+        !AC: Rate coeffs in units of 1/cm  (DM scattering)    
+        RcDM=cns(CP%nDM+5)*(CP%sigDM)*(CP%omegab)*rhocrit/(a0**2)/(mb*(1._dl+CP%mDM2mp))&
+             * (vDMb**(1+CP%nDM)) * FHel
+        RcDM=RcDM*(1._dl + (3._dl/(4._dl+CP%mDM2mp))*((1._dl-CP%yhe)/FHel - 1._dl))
+        Rg=(4._dl/3._dl)*(grhog_t/grhob_t)*a0*sigmat*ne
+
+        !Convert Rate coeffs to units of 1/Mpc
+        RcDM = RcDM*cmperMpc
+        Rg = Rg*cmperMpc
+
+        !Time scales
+        timec=a0*me/(2.0*mub*mb*Rg)
+        timed=a0*(CP%mDM2mp+1._dl)/(2.0*CP%mDM2mp*RcDM)
+        epg = tgnow*hub0*timec*fff
+        epb = tgnow*hub0*timed
+
+        !Save the timescales
+        timecs(i-1)=timec
+        timeds(i-1)=timed
+        hubs(i-1)=hub0
+        fs(i-1)=f
+        now = i-1
+        !print *, '---'
+        !print *,z
+        !print *, hub0
+        !print *, h0c*a0
+        !print *,(tdm(i-1)-tb(i-1))/tdm(i-1)
+        !print *,hub0*timec
+        !print *,hub0*timed
+        !No scattering
+        if (CP%sigDM ==0) then
+            tb(i)=CP%tcmb/a+a2t/(a*a)
+            tdm(i)=0.0
+            timeds(i-1)=0.0
+        !No temperature evolution
+        else if (.not. tempev) then
+            !TL -- match this to our initial conditions. temperature in units of
+            !Kelvin
+            tb(i)=CP%tcmb/a+a2t/(a*a)
+            !TL -- power law fit to effective temperature for nonthermal
+            !freeze-in
+            if(CP%mDM2mp < 8.5d-5) then
+                tdm(i)=min( 1.255*exp(-1.03227962*(log(CP%mDM2mp/1.0657799d-6))**1.0391477 +  &
+                0.03820302*(log(CP%mDM2mp/1.0657799d-6))**2.31163969 - 15.35459326)/(a*a),CP%tcmb/a)
+            else
+                tdm(i)=min( 1.255*0.00026311*(CP%mDM2mp/1.0657799d-6 + 291.8969)**(-1.825)/(a*a) ,CP%tcmb/a)
+            endif
+       !CD !!SUDDEN DECOUPLING
+        else if ((hub0*timed < 1.) .and. (coupled == 1)) then
+            tb(i) = CP%tcmb/a+a2t/(a*a)
+            tdm(i) = tb(i) !- epb
+        else
+            coupled = 0
+            tb(i) = CP%tcmb/a+a2t/(a*a)
+            tdm(i) = tdm(i-1)*a0*a0 /(a*a)
+            !tdm(i) = CP%tcmb/(a*a)
+        end if
+        !Ceilings
+        if (tb(i) > CP%tcmb/a) then
+            tb(i) = CP%tcmb/a - epg
+        end if
+        
+       !CD
 
         !  Baryon sound speed squared (over c**2).
         dtbdla=-2._dl*tb(i)-thomc*adothalf/adot*(a*tb(i)-CP%tcmb)
@@ -2921,6 +3222,10 @@
     end if
 
     call splini(spline_data,nthermo)
+    !CD
+    call splder(tb,dtb,nthermo,spline_data)
+    call splder(tdm,dtdm,nthermo,spline_data)
+    !CD        
     call splder(cs2,dcs2,nthermo,spline_data)
     call splder(dotmu,ddotmu,nthermo,spline_data)
     call splder(ddotmu,dddotmu,nthermo,spline_data)
