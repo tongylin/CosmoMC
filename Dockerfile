@@ -24,22 +24,17 @@ RUN curl "http://pla.esac.esa.int/pla/aio/product-action?COSMOLOGY.FILE_ID=COM_L
     tar zxvfs plc.tar.gz && \
     mv code/plc_3.0/plc-3.01 /plc && \
     rm plc.tar.gz && rm -rf code && \
-    cd /plc && ./waf configure && ./waf install
+    cd /plc && ./waf configure && ./waf install && \
+    echo "\n\nsource /plc/bin/clik_profile.sh" >> ~/.bash_profile && \
+    echo "\n\nsource /plc/bin/clik_profile.sh" >> ~/.bashrc
 
-# Download data files
-RUN curl "http://pla.esac.esa.int/pla/aio/product-action?COSMOLOGY.FILE_ID=COM_Likelihood_Data-baseline_R3.00.tar.gz" -o data.tar.gz && \
-    tar zxvfs data.tar.gz && \
-    mkdir /data && mv baseline/plc_3.0 /data/clik_14.0
-
-# Set up working directory
-RUN mkdir /app
+# Set up working directory (will require mounting via "docker run" as "-v $(pwd):/app")
+VOLUME ["/app"]
 WORKDIR /app
-ADD . /app
+COPY docker-entrypoint.sh /usr/local/bin
 
-# Symlink in the data
-RUN ln -s /data/clik_14.0 /app/data/clik_14.0
-
-# Finally make CosmoMC
-RUN cd /app && bash -c "source /plc/bin/clik_profile.sh && make clean && make"
-RUN echo "\n\nsource /plc/bin/clik_profile.sh" >> ~/.bashrc
+# Run bash by default, but use docker-entrypoint.sh to allow for other commands to be wrapped
+# in plc-required clik_profile.sh modifications:
+#
+ENTRYPOINT ["docker-entrypoint.sh"]
 CMD ["/bin/bash"]
