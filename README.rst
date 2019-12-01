@@ -38,14 +38,9 @@ To build container (or rebuild after changes):
 
     $ docker build -t tongylin/cosmomc .
 
-Run container with bash subshell:
+Run container with bash subshell and mapping the cosmomc directory to home:
 
-    $ docker run --rm -it tongylin/cosmomc
-
-Run container with mapped volume (mapping /my/shared to /app/shared within container):
-
-    $ docker run --rm -it -v /my/shared:/app/shared tongylin/cosmomc
-
+    $ docker run --rm -it -v $(pwd):/app tongylin/cosmomc
 
 =============
 
