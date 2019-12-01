@@ -140,8 +140,8 @@
 
     !Called after this%init
     !CD    
-    !num_hard = slow_num
-        num_hard = slow_num+3
+    num_hard = slow_num
+    !    num_hard = slow_num+3
     num_initpower = semi_slow_num
     !print *,num_hard,num_initpower,num_theory_params
     if (num_hard + num_initpower /= num_theory_params) &

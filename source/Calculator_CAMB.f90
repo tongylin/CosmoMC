@@ -96,13 +96,11 @@
     P%Reion%redshift= CMB%zre
     P%Reion%delta_redshift = CMB%zre_delta
     !CD
+    P%sigDM = CMB%sigDM
     P%nDM = CMB%nDM
     P%mDM2mp = CMB%mDM2mp
-    P%sigDM = CMB%sigDM* P%mDM2mp *1.6726219e-24_mcp !TL parameter conversion moved here.
-
-    P%sigratio = 0.0   
+    !P%sigratio = 0.0   
     !CD
-
     w_lam = CMB%w
     wa_ppf = CMB%wa
     ALens = CMB%ALens

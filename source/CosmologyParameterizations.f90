@@ -83,7 +83,8 @@
     call Names%AddDerivedRange('H0', this%H0_min, this%H0_max)
     this%num_derived = Names%num_derived
     !set number of hard parameters, number of initial power spectrum parameters
-    call this%SetTheoryParameterNumbers(16,last_power_index)
+    !CD
+    call this%SetTheoryParameterNumbers(19,last_power_index)
 
     end subroutine TP_Init
 
@@ -336,7 +337,7 @@
         CMB%fdm = Params(16)
         !CD
         CMB%mDM2mp = Params(18)
-        CMB%sigDM = Params(17)  ! (Params(17)* CMB%mDM2mp *1.6726219e-24 ) !TL modification
+        CMB%sigDM = (Params(17)* CMB%mDM2mp *1.6726219e-24 )
         CMB%nDM = Params(19)
         call SetFast(Params,CMB)
     end if
@@ -400,7 +401,7 @@
         CMB%Alens=1
         !CD
         CMB%mDM2mp = Params(18)
-        CMB%sigDM =  Params(17)  ! (Params(17)* CMB%mDM2mp *1.6726219e-24 )  !TL modification
+        CMB%sigDM = (Params(17)* CMB%mDM2mp *1.6726219e-24 )
         CMB%nDM = Params(19)
     end select
     end subroutine BK_ParamArrayToTheoryParams
