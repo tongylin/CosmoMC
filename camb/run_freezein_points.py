@@ -15,7 +15,7 @@ sigvec = dat[1]/(mXvec*1e3*keVtogram)/3.0
 # Write a new ini file with these mX, sigvec values and run camb for Cls
 
 for i in range(len(mXvec)):
-	print i
+	print(i)
 	os.system("cp nm4_base.ini nm4_run.ini")
 	f = open('nm4_run.ini', "a")
 	newout = """

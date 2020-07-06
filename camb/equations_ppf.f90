@@ -2362,12 +2362,15 @@
     call thermotemps(tau, tbnow, tdmnow, xenow)
 
     !CD: Update DM sound speed, without enforcing Tb=Tchi 
-    cs2c=cs2/CP%mDM2mp*tdmnow/tbnow
+    !cs2c=cs2/CP%mDM2mp*tdmnow/tbnow
+
+    !TL: Corrected DM sound speed for DM that is decoupled from Baryons
+    cs2c = 5./3.0*kBvl*tdmnow/(CP%mDM2mp*mb)
 
     !CD: thermal DM velocity in units of c
     pdmnow=3.0*kBvl*tdmnow*CP%mDM2mp*mb   ! this is really p_chi^2 in units of MeV^2
-    vdmnow = pdmnow/(pdmnow + CP%mDM2mp*mb*CP%mDM2mp*mb)/3.0  ! vdm^2 in units of c=1
-    !TL: this is to make sure velocity doesn't go above 1.0
+    vdmnow = pdmnow/(pdmnow/3.0 + CP%mDM2mp*mb*CP%mDM2mp*mb)/3.0  ! vdm^2 in units of c=1
+    !TL: this is to make sure velocity doesn't go above 1.0 ... here saturates to 1.
 
     !TL: rms velocity
     if(1.d0/a.ge.1001.d0) then
