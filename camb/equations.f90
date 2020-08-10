@@ -1951,12 +1951,18 @@
     !cs2c=cs2/CP%mDM2mp*tdmnow/tbnow
 
     !TL: Corrected DM sound speed for DM that is decoupled from Baryons
-    cs2c = 5./3.0*kBvl*tdmnow/(CP%mDM2mp*mb)
+    !cs2c = 5./3.0*kBvl*tdmnow/(CP%mDM2mp*mb)
+    cs2c = 5./3.0*kBvl*tdmnow/(CP%mDM2mp*mb) * (1 - 3.5*kBvl*tdmnow/(CP%mDM2mp*mb))/(1 + 2.5*kBvl*tdmnow/(CP%mDM2mp*mb))
+    !TL: Corrected DM equation of state - nonrelativistic limit
+    !wDM = kBvl*tdmnow/(CP%mDM2mp*mb) * (1 - 4*kBvl*tdmnow/(CP%mDM2mp*mb) )
 
     !CD: thermal DM velocity in units of c
     pdmnow=3.0*kBvl*tdmnow*CP%mDM2mp*mb   ! this is really p_chi^2 in units of MeV^2
     vdmnow = pdmnow/(pdmnow/3.0 + CP%mDM2mp*mb*CP%mDM2mp*mb)/3.0  ! vdm^2 in units of c=1
     !TL: this is to make sure velocity doesn't go above 1.0
+
+    !TL: Using (approximately) rms velocity divided by 3 as equation of state.
+    wDM = pdmnow/(pdmnow + CP%mDM2mp*mb*CP%mDM2mp*mb)/3.0
 
     !TL: rms velocity
     if(1.d0/a.ge.1001.d0) then
@@ -1982,7 +1988,10 @@
 
     RbDM=(grhoc_t/grhob_t) * RcDM
 
-   clxcdot=-k*(z+vc) !CD with DM scattering 
+    !TL -- this appears to be the DM density evolution equation, not sure why its called clxc
+    ! clxcdot=-k*(z+vc) !CD with DM scattering 
+    clxcdot = -k*(z+vc)*(1 + wDM) - clxc*4*wDM*(1 - wDM)/(1 + wDM)*adotoa
+
    ayprime(3)=clxcdot
 
     !  Baryon equation of motion.
@@ -1996,6 +2005,9 @@
 
     !  Use explicit equation for vb if appropriate
         vcdot=-adotoa*vc + cs2c*k*clxc + RcDM*(vb-vc)
+    !TL: modified with DM equation of state
+    vcdot=-adotoa*vc*(1 - wDM)*(1 - 3*wDM)/(1 + wDM) + wDM*(5 - 3*wDM)/3/(1 + wDM)/(1 + wDM)*k*clxc + RcDM*(vb-vc)
+    
 
     if (EV%TightCoupling) then
         !  ddota/a
@@ -2059,7 +2071,9 @@
     ayprime(5)=vbdot
 
     !CD: DM scattering not affected by tight coupling
-    vcdot=-adotoa*vc + cs2c*k*clxc + RcDM*(vb-vc)
+    !vcdot=-adotoa*vc + cs2c*k*clxc + RcDM*(vb-vc)
+    !TL: modified with DM equation of state
+    vcdot=-adotoa*vc*(1 - wDM)*(1 - 3*wDM)/(1 + wDM) + wDM*(5 - 3*wDM)/3/(1 + wDM)/(1 + wDM)*k*clxc + RcDM*(vb-vc)
     ayprime(6)=vcdot
 
     if (.not. EV%no_phot_multpoles) then
