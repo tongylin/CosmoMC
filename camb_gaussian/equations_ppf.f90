@@ -42,7 +42,6 @@
     logical :: is_cosmological_constant
     private nde,ddw_ppf,rde,ade,ddrde,amin
 
-
     contains
 
     subroutine DarkEnergy_ReadParams(Ini)
@@ -81,9 +80,6 @@
     call setcgammappf
 
     end subroutine DarkEnergy_ReadParams
-
-
-
 
 
     subroutine setddwa
@@ -292,9 +288,6 @@
     integer, parameter :: initial_adiabatic=1, initial_iso_CDM=2, &
         initial_iso_baryon=3,  initial_iso_neutrino=4, initial_iso_neutrino_vel=5, initial_vector = 0
     integer, parameter :: initial_nummodes =  initial_iso_neutrino_vel
-
-
-    real(dl), dimension(1:114) :: z_Rbcdm,Rbcdm_10G,Rbcdm_10G_p2order,dRbcdm_10G,spline_cora                                                                           
 
     type EvolutionVars
         real(dl) q, q2
@@ -2115,34 +2108,6 @@
 
     end subroutine outtransf
 
-    !ccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc
-
-    !CD 
-   subroutine Rbcdm_setup()
-   integer i
-   integer, parameter :: Nz_npy=114
-   character(LEN=1024) :: R10gauss = 'camb/R25keVnewgaussian.dat'
-    
-    call OpenTxtFile(R10gauss, 2) 
-    do i=1,Nz_npy   
-    read(2,*) z_Rbcdm(i),Rbcdm_10G(i)
-    end do 
-    close(unit=2)
-
-        do i=1,Nz_npy
-        z_Rbcdm(i)=log(z_Rbcdm(i))
-        Rbcdm_10G(i)=log(Rbcdm_10G(i))
-        dRbcdm_10G(i)=0.d0
-        Rbcdm_10G_p2order(i)=0.d0
-        spline_cora(i)=0.d0
-        end do
-
-    call splini(spline_cora,Nz_npy)
-    call splder(Rbcdm_10G,dRbcdm_10G,Nz_npy,spline_cora)
-    call spline(z_Rbcdm,Rbcdm_10G,Nz_npy,dRbcdm_10G(1),dRbcdm_10G(Nz_npy),Rbcdm_10G_p2order)
-
-    end subroutine Rbcdm_Setup
-
     !cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc
     subroutine derivs(EV,n,tau,ay,ayprime)
     !  Evaluate the time derivatives of the perturbations
@@ -2184,16 +2149,10 @@
         cns= (/ 0.2659, 0.3333, 0.5319, 1.0, 2.12775, 5.0, 12.7662, 35.0,102.129/)
     real(dl) tgnow,tbnow,tdmnow, pdmnow, vdmnow, xenow
     real(dl) RbDM,RcDM
-    real(dl) vDMb,cs2c,FF,FHel, vrms
-    real(dl) zvl    
+    real(dl) vDMb,cs2c,FF,FHel, vrms, wDM
      !CD       
     real(dl) Gamma,S_Gamma,ckH,Gammadot,Fa,dgqe,dgrhoe, vT
     real(dl) w_eff, grhoT
-    !CD
-   real(dl) avalue
-   integer j     
-   integer, parameter :: Nz_npy=114
-!CD
 
     !CD
     h0c = ((CP%h0)/(cmperMpc*1d-5)) * 29979245800_dl ! H0*c in cm/s^2
@@ -2403,12 +2362,24 @@
     call thermotemps(tau, tbnow, tdmnow, xenow)
 
     !CD: Update DM sound speed, without enforcing Tb=Tchi 
-    cs2c=cs2/CP%mDM2mp*tdmnow/tbnow
+    !cs2c=cs2/CP%mDM2mp*tdmnow/tbnow
+
+    !TL: Corrected DM sound speed for DM that is decoupled from Baryons
+    !cs2c = 5./3.0*kBvl*tdmnow/(CP%mDM2mp*mb) * (1 - 3.5*kBvl*tdmnow/(CP%mDM2mp*mb))/(1 + 2.5*kBvl*tdmnow/(CP%mDM2mp*mb))
+
+    !TL: Corrected DM equation of state - nonrelativistic limit -- not numerically stable
+    !wDM = kBvl*tdmnow/(CP%mDM2mp*mb) ! * (1 - 4*kBvl*tdmnow/(CP%mDM2mp*mb) )
 
     !CD: thermal DM velocity in units of c
     pdmnow=3.0*kBvl*tdmnow*CP%mDM2mp*mb   ! this is really p_chi^2 in units of MeV^2
-    vdmnow = pdmnow/(pdmnow + CP%mDM2mp*mb*CP%mDM2mp*mb)/3.0  ! vdm^2 in units of c=1
-    !TL: this is to make sure velocity doesn't go above 1.0
+    vdmnow = pdmnow/(pdmnow/3.0 + CP%mDM2mp*mb*CP%mDM2mp*mb)/3.0  ! vdm^2 in units of c=1
+    !TL: this is to make sure velocity doesn't go above 1.0 ... here saturates to 1.
+    !TL: UPDATE: this is not exactly vdm^2, but for the thermal case it doesn't matter too much since we have no effect away from NR limit.
+    !    --- the point is that it gives Teff/mX in the low mX limit which is what we need
+
+    !TL: Using (approximately) rms velocity divided by 3 as equation of state.
+    ! -- this would be more accurate with Bessel functions, though I'm not sure if it's numerically important 
+    wDM = pdmnow/(pdmnow + CP%mDM2mp*mb*CP%mDM2mp*mb)/3.0
 
     !TL: rms velocity
     if(1.d0/a.ge.1001.d0) then
@@ -2424,19 +2395,8 @@
     !CD: Rate coeffs in units of 1/Mpc
     !TL: r = vms/sqrt(Tb/mb + Tx/mx)
     vDMb = vrms/sqrt((kBvl/mb)*tbnow + vdmnow)
-
-      zvl=log(1.d0/a-1.d0)
-      call cubicsplint(z_Rbcdm,Rbcdm_10G,Rbcdm_10G_p2order,Nz_npy,zvl,RcDM)
-        if(zvl.gt.z_Rbcdm(Nz_npy))then
-        RcDM=Rbcdm_10G(Nz_npy)
-        end if
-        if(zvl.lt.z_Rbcdm(1))then
-        RcDM=Rbcdm_10G(1)
-        end if
-        RcDM=Exp(RcDM)*(CP%sigDM)*(CP%omegab)*rhocrit*FHel*min(xenow,1.d0)/(a**2)/(CP%mDM2mp*1.6726219e-24)    
-!CD
-!    RcDM=(CP%sigDM)*(CP%omegab)*rhocrit*(vrms**(CP%nDM+1))&
-!        *FHel/((a**2)*mb*(1._dl+CP%mDM2mp))*min(xenow,1.d0)*(erf(vDMb/sqrt(2.d0)) - vDMb*sqrt(2.d0/3.14)*exp(-vDMb**2/2.d0))
+    RcDM=(CP%sigDM)*(CP%omegab)*rhocrit*(vrms**(CP%nDM+1))&
+         *FHel/((a**2)*mb*(1._dl+CP%mDM2mp))*min(xenow,1.d0)*(erf(vDMb/sqrt(2.d0)) - vDMb*sqrt(2.d0/3.14)*exp(-vDMb**2/2.d0))
 
 !TL: delta function option!
 !    if(CP%dmdelta) then
@@ -2445,7 +2405,9 @@
 
     RbDM=(grhoc_t/grhob_t) * RcDM
 
-   clxcdot=-k*(z+vc) !CD with DM scattering 
+    !TL -- this appears to be the DM density evolution equation, not sure why its called clxc
+    !clxcdot=-k*(z+vc) !CD with DM scattering 
+    clxcdot = -k*(z+vc)*(1 + wDM) - clxc*4*wDM*(1 - wDM)/(1 + wDM)*adotoa
     ayprime(3)=clxcdot
 
     !  Baryon equation of motion.
@@ -2520,7 +2482,9 @@
     ayprime(5)=vbdot
 
     !CD: DM scattering not affected by tight coupling
-    vcdot=-adotoa*vc + cs2c*k*clxc + RcDM*(vb-vc)
+    !vcdot=-adotoa*vc + cs2c*k*clxc + RcDM*(vb-vc)
+    !TL: modified with DM equation of state
+    vcdot=-adotoa*vc*(1 - wDM)*(1 - 3*wDM)/(1 + wDM) + wDM*(5 - 3*wDM)/3/(1 + wDM)/(1 + wDM)*k*clxc + RcDM*(vb-vc)
     ayprime(6)=vcdot
 
     if (.not. EV%no_phot_multpoles) then
@@ -3057,91 +3021,7 @@
 
     end subroutine derivst
 
-    !CD    
-    subroutine spline2(x,y,n,d11,d1n,d2)
-    use Precision
-    integer, intent(in) :: n
-    real(dl), intent(in) :: x(n), y(n), d11, d1n
-    real(dl), intent(out) :: d2(n)
-    integer i
-    real(dl) xp,qn,sig,un,xxdiv,u(n-1),d1l,d1r
 
-    d1r= (y(2)-y(1))/(x(2)-x(1))
-    if (d11>.99e30_dl) then
-        d2(1)=0._dl
-        u(1)=0._dl
-    else
-        d2(1)=-0.5_dl
-        u(1)=(3._dl/(x(2)-x(1)))*(d1r-d11)
-    endif
-
-    do i=2,n-1
-        d1l=d1r
-        d1r=(y(i+1)-y(i))/(x(i+1)-x(i))
-        xxdiv=1._dl/(x(i+1)-x(i-1))
-        sig=(x(i)-x(i-1))*xxdiv
-        xp=1._dl/(sig*d2(i-1)+2._dl)
-
-        d2(i)=(sig-1._dl)*xp
-
-        u(i)=(6._dl*(d1r-d1l)*xxdiv-sig*u(i-1))*xp
-    end do
-    d1l=d1r
-
-    if (d1n>.99e30_dl) then
-        qn=0._dl
-        un=0._dl
-    else
-        qn=0.5_dl
-        un=(3._dl/(x(n)-x(n-1)))*(d1n-d1l)
-    endif
-
-    d2(n)=(un-qn*u(n-1))/(qn*d2(n-1)+1._dl)
-    do i=n-1,1,-1
-        d2(i)=d2(i)*d2(i+1)+u(i)
-    end do
-    end subroutine spline2
-    !CD    
-    
-
-    !CD
-    SUBROUTINE splint2(xa,ya,y2a,n,x,y)
-        use Precision
-        INTEGER n
-        REAL(dl) x,y,xa(n),y2a(n),ya(n)
-!Given the arrays xa(1:n) and ya(1:n) of length n, which tabulate a function
-!(with the
-!xai’s in order), and given the array y2a(1:n), which is the output from spline
-!above,
-!and given a value of x, this routine returns a cubic-spline interpolated value
-!y.
-        INTEGER k,khi,klo
-        REAL(dl) a,b,h
-
-        klo=1 !We will find the right place in the table by means of bisection.
-!This is optimal if sequential calls to this routine are at random
-!values of x. If sequential calls are in order, and closely
-!spaced, one would do better to store previous values of
-!klo and khi and test if they remain appropriate on the
-!next call.
-        khi=n
-        1 if (khi-klo.gt.1) then
-        k=(khi+klo)/2
-        if(xa(k).gt.x)then
-        khi=k
-        else
-        klo=k
-        endif
-        goto 1
-        endif !klo and khi now bracket the input value of x.
-        h=xa(khi)-xa(klo)
-        !if (h.eq.0.) pause ’bad xa input in splint’ !The xa’s must be distinct.
-        a=(xa(khi)-x)/h !Cubic spline polynomial is now evaluated.
-        b=(x-xa(klo))/h
-        y=a*ya(klo)+b*ya(khi)+((a**3-a)*y2a(klo)+(b**3-b)*y2a(khi))*(h**2)/6.
-        return
-        END SUBROUTINE splint2    
-    !CD     
 
     !cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc
 

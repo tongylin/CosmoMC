@@ -9,11 +9,7 @@
         initial_adiabatic,initial_vector,initial_iso_baryon,initial_iso_CDM, initial_iso_neutrino, initial_iso_neutrino_vel, &
         HighAccuracyDefault, highL_unlensed_cl_template, ThermoDerivedParams, nthermo_derived, BackgroundOutputs, &
         Transfer_SortAndIndexRedshifts,  &
-        Recombination_Name, reionization_name, power_name, threadnum, version, tensor_param_rpivot, Rbcdm_setup
-    !CD
-    use InitialPower
-    !CD    
-    
+        Recombination_Name, reionization_name, power_name, threadnum, version, tensor_param_rpivot
     use Errors !CAMB
     use settings
     use likelihood
@@ -744,15 +740,11 @@
     !JD Changed P%Transfer%redshifts and P%Transfer%num_redshifts to
     !P%Transfer%PK_redshifts and P%Transfer%PK_num_redshifts respectively
     !for nonlinear lensing of CMB + LSS compatibility
-    
-    !CD
-    call Rbcdm_setup
-    !CD   
-
     Threadnum =num_threads
     w_lam = -1
     wa_ppf = 0._dl
     call CAMB_SetDefParams(P)
+    call Rbcdm_setup
 
     HighAccuracyDefault = .true.
     P%OutputNormalization = outNone

@@ -3076,10 +3076,10 @@
             !TL -- power law fit to effective temperature for nonthermal
             !freeze-in
             if(CP%mDM2mp < 8.5d-5) then
-                tdm(i)=min( 1.*exp(-1.03227962*(log(CP%mDM2mp/1.0657799d-6))**1.0391477 +  &
+                tdm(i)=min(exp(-1.03227962*(log(CP%mDM2mp/1.0657799d-6))**1.0391477 +  &
                 0.03820302*(log(CP%mDM2mp/1.0657799d-6))**2.31163969 - 15.35459326)/(a*a),CP%tcmb/a)
             else
-                tdm(i)=min( 1.*0.00026311*(CP%mDM2mp/1.0657799d-6 + 291.8969)**(-1.825)/(a*a) ,CP%tcmb/a)
+                tdm(i)=min(0.00026311*(CP%mDM2mp/1.0657799d-6 + 291.8969)**(-1.825)/(a*a) ,CP%tcmb/a)
             endif
        !CD !!SUDDEN DECOUPLING
         else if ((hub0*timed < 1.) .and. (coupled == 1)) then
