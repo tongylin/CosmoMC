@@ -1,3 +1,7 @@
+*.ini
+output*
+camb/*ini
+camb/output*
 plot_data/
 dist/
 scripts/
