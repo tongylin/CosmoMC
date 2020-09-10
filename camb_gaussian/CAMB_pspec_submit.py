@@ -8,6 +8,10 @@ mvec = [  1.        ,   1.27427499,   1.62377674,   2.06913808,
         48.32930239,  61.58482111,  78.47599704, 100.        , 
 		130., 150., 200.]
 
+mvec = [10, 15, 20, 25, 30, 35]
+sigvec_FI = [2.95170297e-12, 7.32095846e-13, 2.79655917e-13, 1.35255836e-13,
+ 7.50191872e-14, 4.49840860e-14]
+
 for i in range(len(mvec)):
 	print(i)
 	os.system("cp nm4_base.ini nm4_run.ini")
@@ -17,7 +21,7 @@ output_root = /app/camb_gaussian/outputs_pspec/nm4_mX""" + str(mvec[i]) + """
 # DM scattering stuff
 dm_scatter = T
 mDM = """ + str(mvec[i]*1e-3) + """
-sig0omDM = 1e-16
+sig0omDM = """ + str(1e-17) + """
 sig0omDMHe = 0
 n = -4
 dm_delta = F
