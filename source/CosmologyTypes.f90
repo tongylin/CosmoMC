@@ -38,9 +38,10 @@
         integer :: num_cls = 0
         integer :: lmax_tensor = 600
         !note only lmax_computed_cl is actually calculated
-        integer :: lmax_computed_cl = 4500 !Never compute primordial above this, just fit
+        integer :: lmax_computed_cl = 5000 !Never compute primordial above this, just fit
         integer :: lmin_computed_cl = 2000 !if cl needed, calculate to at least this
-        integer :: lmin_store_all_cmb = 0 !>0 if you want output everything even if not used
+        ! TL - modified in attempt to get it to output everything...
+        integer :: lmin_store_all_cmb = 1 !>0 if you want output everything even if not used
 
         !redshifts for output of BAO background parameters
         real(mcp) :: z_outputs(5) = [0.15_mcp, 0.38_mcp, 0.51_mcp, 0.61_mcp, 2.33_mcp]
@@ -292,6 +293,8 @@
                 !Only force BB and PhiPhi output if likely to be accurate
                 this%cl_lmax(3,3) = this%lmin_store_all_cmb
                 this%cl_lmax(4,4) = this%lmin_store_all_cmb
+                !TL --- Include TPhi as well.
+                this%cl_lmax(4,1) = this%lmin_store_all_cmb
             end if
         end if
     end do

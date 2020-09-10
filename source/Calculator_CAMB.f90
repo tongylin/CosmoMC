@@ -423,6 +423,7 @@
                 CL(lmx+1:)=0
             end associate
         end if
+        ! TL - these lines should be setting PT -- not sure why it doesn't seem to work for theory_cls...
         lmx = min(CosmoSettings%lmax_computed_cl, CosmoSettings%cl_lmax(CL_Phi,CL_T))
         if (lmx/=0) then
             !lensing-temp

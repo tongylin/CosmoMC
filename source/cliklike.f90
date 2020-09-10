@@ -206,6 +206,8 @@
     this%cl_lmax(CL_E,CL_E) = this%lensing_lmaxs(3)
     this%cl_lmax(CL_B,CL_B) = this%lensing_lmaxs(4)
     this%cl_lmax(CL_Phi,CL_Phi) = this%lensing_lmaxs(1)
+    ! TL - add PT cross power - not sure what is going on here, though! argh.
+    this%cl_lmax(CL_Phi,CL_T) = this%lensing_lmaxs(1)
     where (this%cl_lmax<0)
         this%cl_lmax=0
     end where
