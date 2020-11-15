@@ -8,19 +8,19 @@ sigvec = [4.18618971e-13, 2.95009927e-13, 2.66773946e-13, 1.98396315e-13,
        1.30018684e-13, 9.75529944e-14, 8.23432138e-14]
 
 
-for i in [5]: #range(2,len(mvec)):
+for i in [2]:
 	print(i)
 	# first copy over correct equations_ppf to load the correct file
-	os.system("cp camb/equations_ppf_R" + mXname[i] + ".f90 camb/equations_ppf.f90")
+	os.system("cp camb/equations_ppf_R" + mXname[i] + "gH.f90 camb/equations_ppf.f90")
 	# compile
 	os.system("make clean")
 	os.system("make")
 	#### copy over script - first NO LENSING
-	ini_name = "dmscat_" + mXname[i] + ".ini"
+	ini_name = "dmscat_" + mXname[i] + "_gH.ini"
 	os.system("cp test_dmscat.ini " + ini_name)
 	f = open(ini_name, "a")
 	newout = """
-test_output_root = outputs/""" + str(mvec[i]) + """keV
+test_output_root = outputs/""" + str(mvec[i]) + """keV_gH
 CMB_lensing = F
 param[mDM2mp] = """ + str(mvec[i]*1e3/938e6) + """
 param[sigDMom] = """ + str(sigvec[i]) + """
@@ -32,7 +32,7 @@ param[sigDMom] = """ + str(sigvec[i]) + """
 # 	os.system("cp test_dmscat.ini " + ini_name)
 # 	f = open(ini_name, "a")
 # 	newout = """
-# test_output_root = outputs/""" + str(mvec[i]) + """keV_lensing
+# test_output_root = outputs/""" + str(mvec[i]) + """keV_gHe_lensing
 # CMB_lensing = T
 # param[mDM2mp] = """ + str(mvec[i]*1e3/938e6) + """
 # param[sigDMom] = """ + str(sigvec[i]) + """
